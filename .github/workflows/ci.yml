@@ -24,7 +24,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
-          cache: maven
+          # No `cache: maven` here: this is a deps.edn project with no pom.xml,
+          # so the Maven cache lookup fails the job. Deps are cached by the
+          # actions/cache step below instead.
 
       - name: Install Clojure CLI
         uses: DeLaGuardo/setup-clojure@13.2
@@ -71,7 +73,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
-          cache: maven
+          # No `cache: maven` here: this is a deps.edn project with no pom.xml,
+          # so the Maven cache lookup fails the job. Deps are cached by the
+          # actions/cache step below instead.
 
       - name: Install Clojure CLI
         uses: DeLaGuardo/setup-clojure@13.2
