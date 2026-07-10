@@ -1,0 +1,23 @@
+# Agent / assistant instruction files are workspace-local, never published
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.zcode/
+
+# Clojure / JVM
+target/
+.cpcache/
+*.class
+nrepl-port
+
+# Logs
+*.log
+
+# OS and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

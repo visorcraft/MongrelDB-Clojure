@@ -1,0 +1,22 @@
+;; MongrelDB Clojure client deps.edn (Clojure CLI / deps.edn build system).
+;;
+;; A pure-Clojure client for a running `mongreldb-server` daemon, built on the
+;; standard-library `java.net.http.HttpClient` (Java 11+). No external runtime
+;; dependencies - the only exception classes are five tiny .java files compiled
+;; ahead-of-time so Clojure code can catch them by type, and JSON is decoded
+;; with a self-contained parser in this repo.
+
+{:deps {org.clojure/clojure {:mvn/version "1.11.3"}}
+ ;; Compiled Java exception classes + Clojure sources on the classpath.
+ :paths ["src" "target/classes"]
+ :aliases
+ {:build
+  {:extra-paths ["java-src"]
+   :exec-fn visorcraft.mongreldb.build/compile-java
+   :extra-deps {org.clojure/clojure {:mvn/version "1.11.3"}}}
+  :test
+  {:extra-paths ["tests"]
+   :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
+  ;; Examples share the client source path.
+  :examples
+  {:extra-paths ["examples"]}}}
