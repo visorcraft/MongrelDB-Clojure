@@ -29,9 +29,16 @@ jobs:
           # actions/cache step below instead.
 
       - name: Install Clojure CLI
-        uses: DeLaGuardo/setup-clojure@13.6.1
-        with:
-          cli: '1.11.2'
+        # Install the official Clojure CLI directly via download.clojure.org
+        # (DeLaGuardo/setup-clojure intermittently 403s on GitHub asset
+        # downloads, issue #42). The linux-install script is the canonical
+        # install method for deps.edn projects.
+        run: |
+          curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh -o /tmp/linux-install.sh
+          chmod +x /tmp/linux-install.sh
+          /tmp/linux-install.sh --prefix "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        shell: bash
 
       - name: Cache Clojure deps
         uses: actions/cache@v6
@@ -44,6 +51,11 @@ jobs:
           key: clj-deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
           restore-keys: |
             clj-deps-${{ runner.os }}-
+
+      - name: Print versions
+        run: |
+          clojure --version
+          java -version
 
       - name: Compile Java exception classes
         # Compile the five tiny Java exception classes AOT so the Clojure code
@@ -78,9 +90,12 @@ jobs:
           # actions/cache step below instead.
 
       - name: Install Clojure CLI
-        uses: DeLaGuardo/setup-clojure@13.6.1
-        with:
-          cli: '1.11.2'
+        run: |
+          curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh -o /tmp/linux-install.sh
+          chmod +x /tmp/linux-install.sh
+          /tmp/linux-install.sh --prefix "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        shell: bash
 
       - name: Cache Clojure deps
         uses: actions/cache@v6
@@ -93,6 +108,11 @@ jobs:
           key: clj-deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
           restore-keys: |
             clj-deps-${{ runner.os }}-
+
+      - name: Print versions
+        run: |
+          clojure --version
+          java -version
 
       - name: Compile Java exception classes
         run: |
