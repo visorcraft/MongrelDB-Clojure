@@ -20,6 +20,7 @@
   (:require [clojure.test :as test :refer [deftest is testing use-fixtures
                                            run-tests successful?]]
             [visorcraft.mongreldb.core :as mdb]
+            [visorcraft.mongreldb.json :as json]
             [visorcraft.mongreldb.query :as q]
             [visorcraft.mongreldb.transaction :as txn])
   (:import [java.io File]
@@ -369,6 +370,11 @@
     (is (= "uuid" (get-in payload [:columns 0 :default_expr])))
     (is (= "status_allowed"
            (get-in payload [:constraints :checks 0 :name])))))
+
+(deftest static-default-matrix
+  (doseq [value ["text" 3 true nil "now"]]
+    (let [wire (json/to-bytes {:default_value value})]
+      (is (= value (:default_value (json/parse wire)))))))
 
 (deftest url-path-escape-encodes-slash
   (is (= "a%2Fb" (mdb/url-path-escape "a/b")))

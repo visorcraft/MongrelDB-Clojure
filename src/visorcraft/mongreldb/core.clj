@@ -198,6 +198,7 @@
 
 (defn- http-get [client path] (do-request client "GET" path nil))
 (defn- http-post [client path body] (do-request client "POST" path body))
+(defn- http-put [client path body] (do-request client "PUT" path body))
 (defn- http-delete [client path] (do-request client "DELETE" path nil))
 
 (defn post
@@ -231,6 +232,13 @@
       []
       (let [parsed (json/parse body)]
         (if (vector? parsed) (mapv #(if (nil? %) nil (str %)) parsed) [])))))
+
+(defn history-retention [client]
+  (json/parse (http-get client "/history/retention")))
+
+(defn set-history-retention-epochs [client epochs]
+  (json/parse (http-put client "/history/retention"
+                        {:history_retention_epochs epochs})))
 
 (defn- create-table-payload [name columns constraints]
   (cond-> {:name name :columns columns}

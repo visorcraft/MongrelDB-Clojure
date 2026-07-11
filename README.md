@@ -29,6 +29,8 @@
   :sha     "..."}}
 ```
 
+History retention: `history-retention` and `set-history-retention-epochs`.
+
 ## Requirements
 
 - **Clojure 1.11 or newer** (any JVM Clojure)
