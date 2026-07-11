@@ -9,6 +9,9 @@
 {:deps {org.clojure/clojure {:mvn/version "1.11.3"}}
  ;; Compiled Java exception classes + Clojure sources on the classpath.
  :paths ["src" "target/classes"]
+ ;; java.net.http is a JPMS module on Java 11+; add it explicitly so the
+ ;; Clojure compiler can resolve HttpRequest$Builder and friends at AOT time.
+ :jvm-opts ["--add-modules" "java.net.http"]
  :aliases
  {:build
   {:extra-paths ["java-src"]
