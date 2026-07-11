@@ -10,15 +10,9 @@
 (defn ^:private java-files
   "Recursively list every .java file under `root`."
   [^File root]
-  (seq (.toArray (java.util.ArrayList.
-                   (let [acc (atom [])]
-                     (letfn [(walk [^File f]
-                               (if (.isDirectory f)
-                                 (run! walk (.listFiles f))
-                                 (when (.endsWith (.getName f) ".java")
-                                   (swap! acc conj f))))]
-                       (walk root)
-                       @acc)))))
+  (seq (filter #(and (.isFile ^File %)
+                     (.endsWith (.getName ^File %) ".java"))
+               (file-seq root))))
 
 (defn compile-java
   "Compile the Java exception sources from `java-src` into `target/classes`.

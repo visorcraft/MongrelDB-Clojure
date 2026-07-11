@@ -359,13 +359,14 @@
   (let [payload-fn (deref #'visorcraft.mongreldb.core/create-table-payload)
         columns [{:id 1 :name "status" :ty "enum"
                   :enum_variants ["draft" "active"]
-                  :default_value "draft"}]
+                  :default_value 3 :default_expr "uuid"}]
         checks {:checks [{:id 1 :name "status_allowed"
                           :expr {:Eq [{:Col 1} {:Lit {:Bytes "draft"}}]}}]}
         payload (payload-fn "articles" columns checks)]
     (is (= ["draft" "active"]
            (get-in payload [:columns 0 :enum_variants])))
-    (is (= "draft" (get-in payload [:columns 0 :default_value])))
+    (is (= 3 (get-in payload [:columns 0 :default_value])))
+    (is (= "uuid" (get-in payload [:columns 0 :default_expr])))
     (is (= "status_allowed"
            (get-in payload [:constraints :checks 0 :name])))))
 

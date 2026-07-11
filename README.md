@@ -99,7 +99,8 @@ Task-focused, commented guides live in [`docs/`](docs):
 (mdb/sql db "UPDATE orders SET amount = 200.0 WHERE customer = 'Bob'")
 ```
 
-Column maps pass `enum_variants` and `default_value` unchanged. The four-arity
+Column maps pass `enum_variants`, scalar `default_value`, and dynamic
+`default_expr` (`"now"` or `"uuid"`) unchanged. The four-arity
 form also sends the daemon's complete table `constraints` object:
 
 ```clojure
