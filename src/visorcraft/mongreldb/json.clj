@@ -126,8 +126,9 @@
                        (parse-error "unterminated escape" (aget pos 0))
                        (let [e (.charAt src (aget pos 0))]
                          (aset pos 0 (inc (aget pos 0)))
-                         (case e
-                           \" (.append sb \") (\\ (.append sb \\))
+                         (condp = e
+                           \" (.append sb \")
+                           \\ (.append sb \\)
                            \/ (.append sb \/)
                            \n (.append sb \newline)
                            \r (.append sb \return)
