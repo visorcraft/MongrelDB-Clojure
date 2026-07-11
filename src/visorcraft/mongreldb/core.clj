@@ -232,17 +232,23 @@
       (let [parsed (json/parse body)]
         (if (vector? parsed) (mapv #(if (nil? %) nil (str %)) parsed) [])))))
 
+(defn- create-table-payload [name columns constraints]
+  (cond-> {:name name :columns columns}
+    (some? constraints) (assoc :constraints constraints)))
+
 (defn create-table
-  "Create a table with typed columns; return the assigned table id."
-  [client name columns]
-  (let [payload {:name name :columns columns}
+  "Create a table with typed columns and optional constraints; return its id."
+  ([client name columns]
+   (create-table client name columns nil))
+  ([client name columns constraints]
+  (let [payload (create-table-payload name columns constraints)
         body (http-post client "/kit/create_table" payload)]
     (if (empty? (String. body StandardCharsets/UTF_8))
       0
       (let [parsed (json/parse body)]
         (if (map? parsed)
           (long (or (:table_id parsed) 0))
-          0)))))
+          0))))))
 
 (defn drop-table
   "Drop a table by name."

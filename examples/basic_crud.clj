@@ -12,7 +12,11 @@
     (println "Health:" (mdb/health db))
     (mdb/create-table db table
                       [{"id" 1 "name" "id" "ty" "int64" "primary_key" true "nullable" false}
-                       {"id" 2 "name" "label" "ty" "string" "primary_key" false "nullable" false}])
+                       {"id" 2 "name" "label" "ty" "enum" "primary_key" false "nullable" false
+                        "enum_variants" ["first" "second"] "default_value" "first"}]
+                      {"checks" [{"id" 1 "name" "known_label"
+                                  "expr" {"Or" [{"Eq" [{"Col" 2} {"Lit" {"Bytes" "first"}}]}
+                                                  {"Eq" [{"Col" 2} {"Lit" {"Bytes" "second"}}]}]}}]})
     (println "Created table:" table)
     (mdb/put db table {1 1, 2 "first"})
     (mdb/put db table {1 2, 2 "second"})

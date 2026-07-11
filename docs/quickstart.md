@@ -105,6 +105,9 @@ Create `src/demo.clj`:
                              {"id" 3 "name" "amount"   "ty" "float64" "primary_key" false "nullable" false}])]
   (println "created table id:" tid))
 
+;; Column maps may include `enum_variants` and `default_value`. Pass a fourth
+;; argument to forward the native table `constraints` object (including CHECKs).
+
 ;; 4. Insert rows. Cells maps column id -> value.
 (mdb/put db "orders" {1 1, 2 "Alice", 3 99.5})
 (mdb/put db "orders" {1 2, 2 "Bob",   3 150.0})
@@ -142,7 +145,7 @@ total rows: 2
 |------|--------------|
 | `(mdb/connect url)` | Builds an HTTP client targeting one daemon. |
 | `(mdb/health db)` | GET `/health`; returns `true` when the daemon answers. |
-| `(mdb/create-table db name cols)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; use them everywhere else. |
+| `(mdb/create-table db name cols)` / `(mdb/create-table db name cols constraints)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; optional column `enum_variants`/`default_value` keys and the native `constraints` object are forwarded unchanged. |
 | `(mdb/put db table cells)` | Single-op transaction: POST `/kit/txn` with one `put` op. `cells` is flattened to `[col_id, val, ...]`. |
 | `(mdb/query db table)` | Starts a `/kit/query` builder. |
 | `(q/where ...)` | Pushes a condition down to a native index. |

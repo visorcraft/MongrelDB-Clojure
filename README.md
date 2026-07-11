@@ -41,7 +41,7 @@
 - **Fluent query builder** that pushes conditions down to the engine's specialized indexes for sub-millisecond lookups: bitmap equality/IN, learned-range, null checks, FM-index full-text search, HNSW vector similarity (`ann`), and sparse vector match. Friendly aliases (`:column` -> `:column_id`, `:min`/`:max` -> `:lo`/`:hi`) are translated to the server's on-wire keys.
 - **Idempotent batch transactions** - operations staged locally and committed atomically, with the engine enforcing unique, foreign-key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
 - **Full SQL access** through the DataFusion-backed `/sql` endpoint: recursive CTEs, window functions, `CREATE TABLE AS SELECT`, materialized views, and multi-statement execution.
-- **Schema management**: typed table creation, full schema catalog, and per-table descriptors.
+- **Schema management**: typed table creation with enum/default fields and native constraints, full schema catalog, and per-table descriptors.
 - **User/role/credentials management** via SQL: Argon2id-hashed catalog users, roles, and `GRANT`/`REVOKE` table-level permissions, all executed through `sql`.
 - **Maintenance**: compaction (all tables or per-table).
 - **Auth**: Bearer token (`--auth-token` mode) and HTTP Basic (`--auth-users` mode), with the bearer token taking precedence.
@@ -97,6 +97,15 @@ Task-focused, commented guides live in [`docs/`](docs):
 
 ;; Run SQL.
 (mdb/sql db "UPDATE orders SET amount = 200.0 WHERE customer = 'Bob'")
+```
+
+Column maps pass `enum_variants` and `default_value` unchanged. The four-arity
+form also sends the daemon's complete table `constraints` object:
+
+```clojure
+(mdb/create-table db "scores" columns
+  {:checks [{:id 1 :name "score_nonneg"
+             :expr {:Ge [{:Col 3} {:Lit {:Float64 0.0}}]}}]})
 ```
 
 ## Authentication
@@ -233,7 +242,7 @@ for the category, or `MongrelDBException` for any client failure.
 | `connect`, `(connect opts)` | Construct a client (`:url` defaults to `http://127.0.0.1:8453`); also accepts `:token`, `:username`, `:password` |
 | `health` -> boolean | Check daemon health |
 | `table-names` -> vector | List table names |
-| `create-table name columns` -> int | Create a table; returns the table id |
+| `create-table name columns` / `create-table name columns constraints` -> int | Create a table; the four-arity form forwards the native constraints object |
 | `drop-table name` -> nil | Drop a table |
 | `count* table` -> int | Row count |
 | `put table cells`, `(put ... idem)` -> map | Insert a row |

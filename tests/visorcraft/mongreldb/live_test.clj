@@ -355,6 +355,20 @@
     (is (= "Alice" (by-id 1)))
     (is (= 99.5 (by-id 3)))))
 
+(deftest create-table-wire-shape
+  (let [payload-fn (deref #'visorcraft.mongreldb.core/create-table-payload)
+        columns [{:id 1 :name "status" :ty "enum"
+                  :enum_variants ["draft" "active"]
+                  :default_value "draft"}]
+        checks {:checks [{:id 1 :name "status_allowed"
+                          :expr {:Eq [{:Col 1} {:Lit {:Bytes "draft"}}]}}]}
+        payload (payload-fn "articles" columns checks)]
+    (is (= ["draft" "active"]
+           (get-in payload [:columns 0 :enum_variants])))
+    (is (= "draft" (get-in payload [:columns 0 :default_value])))
+    (is (= "status_allowed"
+           (get-in payload [:constraints :checks 0 :name])))))
+
 (deftest url-path-escape-encodes-slash
   (is (= "a%2Fb" (mdb/url-path-escape "a/b")))
   (is (= "plain" (mdb/url-path-escape "plain")))
