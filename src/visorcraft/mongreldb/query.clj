@@ -67,7 +67,7 @@
   [b cond-type params]
   (when (nil? cond-type) (throw (ex-info "cond-type is required" {})))
   (when (nil? params) (throw (ex-info "params is required" {})))
-  (let [entry {(str cond-type) (normalize-condition (str cond-type) params)}]
+  (let [entry {(keyword cond-type) (normalize-condition (str cond-type) params)}]
     (update b :conditions conj entry)))
 
 (defn projection

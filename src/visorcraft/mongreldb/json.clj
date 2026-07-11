@@ -169,7 +169,9 @@
             (aset pos 0 (inc (aget pos 0)))
             (recur)))))
     (let [num (.substring src start (aget pos 0))]
-      (if (or (neg? (.indexOf num ".")) (and (neg? (.indexOf num "e")) (neg? (.indexOf num "E"))))
+      (if (and (neg? (.indexOf num "."))
+               (neg? (.indexOf num "e"))
+               (neg? (.indexOf num "E")))
         (try (Long/parseLong num) (catch Exception _ (BigInteger. num)))
         (Double/parseDouble num)))))
 
@@ -196,7 +198,7 @@
     (do (aset pos 0 (inc (aget pos 0))) {})
     (loop [acc (transient {})]
       (skip-ws src pos)
-      (let [k (read-string* src pos)]
+      (let [k (keyword (read-string* src pos))]
         (skip-ws src pos)
         (let [sep (.charAt src (aget pos 0))]
           (aset pos 0 (inc (aget pos 0)))
@@ -227,7 +229,7 @@
         (read-number* src pos)))))
 
 (defn parse
-  "Parse a UTF-8 JSON byte array into Clojure data (maps with string keys,
+  "Parse a UTF-8 JSON byte array into Clojure data (maps with keyword keys,
   vectors, numbers, booleans, nil)."
   [^bytes body]
   (let [src (String. body StandardCharsets/UTF_8)

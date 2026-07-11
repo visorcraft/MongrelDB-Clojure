@@ -323,7 +323,10 @@
       (try
         (let [parsed (json/parse body)]
           (if (vector? parsed)
-            (mapv #(if (map? %) % {}) parsed)
+            (mapv #(if (map? %)
+                     (into {} (for [[k v] %] [(name k) v]))
+                     {})
+                  parsed)
             []))
         (catch Exception _ [])))))
 
@@ -342,7 +345,7 @@
       {}
       (let [parsed (json/parse body)]
         (if (map? parsed)
-          (or (:tables parsed) {})
+          (into {} (for [[k v] (or (:tables parsed) {})] [(name k) v]))
           {})))))
 
 (defn schema-for
@@ -352,7 +355,9 @@
     (if (empty? (String. body StandardCharsets/UTF_8))
       {}
       (let [parsed (json/parse body)]
-        (if (map? parsed) parsed {})))))
+        (if (map? parsed)
+          (into {} (for [[k v] parsed] [(name k) v]))
+          {})))))
 
 ;; ── Public API: maintenance ────────────────────────────────────────────────
 

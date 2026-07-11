@@ -26,8 +26,8 @@
   "Error message thrown when a transaction is committed or rolled back twice."
   "mongreldb: transaction already committed")
 
-(defn- ensure-open [{:keys [committed]}]
-  (when committed
+(defn- ensure-open [{:keys [^java.util.concurrent.atomic.AtomicBoolean committed]}]
+  (when (and committed (.get committed))
     (throw (IllegalStateException. already-committed))))
 
 (defn begin
@@ -35,7 +35,7 @@
   [client]
   {:client    client
    :ops       []
-   :committed false})
+   :committed (java.util.concurrent.atomic.AtomicBoolean. false)})
 
 (defn put
   "Stage an insert. `cells` is a column-id-to-value map, flattened to the
@@ -84,17 +84,23 @@
   - the daemon returns the original response on duplicate commits, even after a
   crash."
   ([txn] (commit txn nil))
-  ([{:keys [client] :as txn} idempotency-key]
-   (when (:committed txn)
-     (throw (IllegalStateException. already-committed)))
-   (let [txn' (assoc txn :committed true)]
-     (if (empty? (:ops txn))
-       {:txn txn' :results []}
-       {:txn txn' :results (core/commit-txn client (:ops txn) idempotency-key)}))))
+  ([txn idempotency-key]
+   (let [^java.util.concurrent.atomic.AtomicBoolean committed (:committed txn)
+         client (:client txn)]
+     (locking txn
+       (when (.get committed)
+         (throw (IllegalStateException. already-committed)))
+       (.set committed true))
+     {:results (if (empty? (:ops txn))
+                 []
+                 (core/commit-txn client (:ops txn) idempotency-key))})))
 
 (defn rollback
   "Discard all staged operations."
-  [{:keys [committed] :as txn}]
-  (when committed
-    (throw (IllegalStateException. already-committed)))
-  (-> txn (assoc :ops []) (assoc :committed true)))
+  [txn]
+  (let [^java.util.concurrent.atomic.AtomicBoolean committed (:committed txn)]
+    (locking txn
+      (when (.get committed)
+        (throw (IllegalStateException. already-committed)))
+      (.set committed true)))
+  (assoc txn :ops []))
