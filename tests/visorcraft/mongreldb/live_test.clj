@@ -17,8 +17,8 @@
   Run with:
     clojure -M:test -m visorcraft.mongreldb.live-test     # full suite
     clojure -M:test -m visorcraft.mongreldb.live-test --offline   # offline only"
-  (:require [clojure.test :refer [deftest is testing use-fixtures
-                                  run-tests successful?]]
+  (:require [clojure.test :as test :refer [deftest is testing use-fixtures
+                                           run-tests successful?]]
             [visorcraft.mongreldb.core :as mdb]
             [visorcraft.mongreldb.query :as q]
             [visorcraft.mongreldb.transaction :as txn])
@@ -395,7 +395,7 @@
   [& args]
   (let [offline? (some #{ "--offline" "-offline" } args)]
     (when-not offline? (boot-daemon!))
-    (let [results (binding [*load-tests* true]
+    (let [results (binding [test/*load-tests* true]
                     (run-tests 'visorcraft.mongreldb.live-test))]
       (when-not offline? (shutdown-daemon!))
       (System/exit (if (successful? results) 0 1)))))
