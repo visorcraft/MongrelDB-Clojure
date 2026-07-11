@@ -10,13 +10,15 @@
   (let [db (mdb/connect)
         table (str "clj_crud_" (.toString (UUID/randomUUID)))]
     (println "Health:" (mdb/health db))
+    ;; Create the table with typed columns only. The daemon's /kit/create_table
+    ;; endpoint deserializes the body as {name, columns}; the label column's
+    ;; enum_variants already constrain its values server-side, so a separate
+    ;; hand-rolled `checks` constraint is unnecessary (and its nested expr wire
+    ;; shape is version-specific and easy to get wrong).
     (mdb/create-table db table
                       [{"id" 1 "name" "id" "ty" "int64" "primary_key" true "nullable" false}
                        {"id" 2 "name" "label" "ty" "enum" "primary_key" false "nullable" false
-                        "enum_variants" ["first" "second"] "default_value" "first"}]
-                      {"checks" [{"id" 1 "name" "known_label"
-                                  "expr" {"Or" [{"Eq" [{"Col" 2} {"Lit" {"Bytes" "first"}}]}
-                                                  {"Eq" [{"Col" 2} {"Lit" {"Bytes" "second"}}]}]}}]})
+                        "enum_variants" ["first" "second"] "default_value" "first"}])
     (println "Created table:" table)
     (mdb/put db table {1 1, 2 "first"})
     (mdb/put db table {1 2, 2 "second"})
