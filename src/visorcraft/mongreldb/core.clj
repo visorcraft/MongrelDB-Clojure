@@ -12,7 +12,7 @@
       (mdb/health db)   ;=> true"
   (:require [visorcraft.mongreldb.json :as json])
   (:import [java.net URI]
-           [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
+           [java.net.http HttpClient HttpRequest HttpRequest$Builder HttpRequest$BodyPublishers
             HttpResponse HttpResponse$BodyHandlers]
            [java.time Duration]
            [java.util Base64]

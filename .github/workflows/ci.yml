@@ -32,11 +32,13 @@ jobs:
         # Install the official Clojure CLI directly via download.clojure.org
         # (DeLaGuardo/setup-clojure intermittently 403s on GitHub asset
         # downloads, issue #42). The linux-install script is the canonical
-        # install method for deps.edn projects.
+        # install method for deps.edn projects. Pin to 1.11.1.1403 (the last
+        # 1.11.x CLI) because the code targets Clojure 1.11 and the 1.12 CLI
+        # bundles a stricter compiler that rejects the inner-class type hints.
         run: |
-          curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh -o /tmp/linux-install.sh
+          curl -fsSL https://github.com/clojure/brew-install/releases/download/1.11.1.1403/linux-install.sh -o /tmp/linux-install.sh
           chmod +x /tmp/linux-install.sh
-          /tmp/linux-install.sh --prefix "$HOME/.local"
+          /tmp/linux-install.sh --prefix "$HOME/.local" --version 1.11.1.1403
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         shell: bash
 
@@ -91,9 +93,9 @@ jobs:
 
       - name: Install Clojure CLI
         run: |
-          curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh -o /tmp/linux-install.sh
+          curl -fsSL https://github.com/clojure/brew-install/releases/download/1.11.1.1403/linux-install.sh -o /tmp/linux-install.sh
           chmod +x /tmp/linux-install.sh
-          /tmp/linux-install.sh --prefix "$HOME/.local"
+          /tmp/linux-install.sh --prefix "$HOME/.local" --version 1.11.1.1403
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         shell: bash
 
