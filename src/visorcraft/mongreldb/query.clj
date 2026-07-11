@@ -88,6 +88,8 @@
     (some? projection) (assoc :projection projection)
     (some? limit)      (assoc :limit limit)))
 
+(declare execute-full)
+
 (defn execute
   "Run the query, returning a vector of row maps. Also records whether the result
   was truncated by `limit`; check it with `truncated`.
