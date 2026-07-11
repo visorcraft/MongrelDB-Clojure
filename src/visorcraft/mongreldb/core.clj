@@ -147,11 +147,14 @@
                   (or (nil? raw-message) (empty? raw-message))
                   (String. body StandardCharsets/UTF_8)
                   :else raw-message)]
-    (case status
-      (401 403) (AuthException. message status code op-index)
-      404       (NotFoundException. message status code op-index)
-      409       (ConflictException. message status code op-index)
-      (QueryException. message status code op-index))))
+    (cond
+      (.startsWith message "not found:")
+      (NotFoundException. message status code op-index)
+      (or (= status 401) (= status 403))
+      (AuthException. message status code op-index)
+      (= status 404) (NotFoundException. message status code op-index)
+      (= status 409) (ConflictException. message status code op-index)
+      :else (QueryException. message status code op-index))))
 
 (defn- strip-leading-slash [^String s]
   (loop [r s]
