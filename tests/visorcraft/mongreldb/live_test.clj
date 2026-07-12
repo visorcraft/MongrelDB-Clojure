@@ -369,13 +369,15 @@
           (mdb/upsert (client) name {1 1, 2 9.0} {2 9.0})
           (let [hist-rows (mdb/sql (client) (str "SELECT id, amount FROM " name " AS OF EPOCH " insert-epoch))
                 curr-rows (mdb/sql (client) (str "SELECT id, amount FROM " name))]
-            (when-not (empty? hist-rows)
-              (is (= 1 (count hist-rows)))
-              (is (= 1 (get (first hist-rows) "id")))
-              (is (= 1.0 (get (first hist-rows) "amount"))))
-            (when-not (empty? curr-rows)
-              (is (= 1 (count curr-rows)))
-              (is (= 9.0 (get (first curr-rows) "amount")))))))
+            (is (= 1 (count curr-rows)))
+            (is (= 9.0 (get (first curr-rows) "amount")))
+            (if (seq hist-rows)
+              (do
+                (is (= 1 (count hist-rows)))
+                (is (= 1 (get (first hist-rows) "id")))
+                (is (= 1.0 (get (first hist-rows) "amount"))))
+              (is (= 9.0 (get (first curr-rows) "amount"))
+                  "hist-rows empty (Arrow IPC streaming) — fallback current-value assertion")))))
       (finally
         (mdb/set-history-retention-epochs (client) (:history_retention_epochs original))))))
 
@@ -431,9 +433,35 @@
     (is (= "now" (get-in cols-by-name ["created_at" :default_expr])))
     (is (nil? (get-in cols-by-name ["created_at" :default_value])))))
 
-(deftest set-history-retention-payload-shape
-  (let [wire (json/to-bytes {:history_retention_epochs 2048})]
-    (is (= 2048 (:history_retention_epochs (json/parse wire))))))
+(deftest history-retention-transport-contract
+  ;; Verify the exact HTTP method, path, body, and response keys the client
+  ;; sends for the frozen /history/retention contract — using with-redefs to
+  ;; stub the private HTTP functions, no daemon required.
+  (let [captures (atom {:puts [] :gets []})]
+    (with-redefs [mdb/http-get (fn [_ path]
+                                 (swap! captures assoc :last-get path)
+                                 (json/to-bytes
+                                   {:history_retention_epochs 42
+                                    :earliest_retained_epoch   7}))
+                  mdb/http-put (fn [_ path body]
+                                 (swap! captures assoc
+                                        :last-put path
+                                        :last-put-body body)
+                                 (json/to-bytes
+                                   {:history_retention_epochs 100
+                                    :earliest_retained_epoch   7}))]
+      (let [client (mdb/connect "http://mock:9999")]
+        ;; GET path and response decoding.
+        (is (= 42 (mdb/history-retention-epochs client)))
+        (is (= "/history/retention" (:last-get @captures)))
+        (is (= 7 (mdb/earliest-retained-epoch client)))
+        ;; PUT path, body, and response decoding.
+        (let [resp (mdb/set-history-retention-epochs client 100)]
+          (is (= "/history/retention" (:last-put @captures)))
+          (is (= {:history_retention_epochs 100}
+                 (:last-put-body @captures)))
+          (is (= 100 (:history_retention_epochs resp)))
+          (is (= 7 (:earliest_retained_epoch resp))))))))
 
 (deftest url-path-escape-encodes-slash
   (is (= "a%2Fb" (mdb/url-path-escape "a/b")))
