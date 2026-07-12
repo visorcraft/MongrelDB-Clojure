@@ -347,6 +347,38 @@
                      (q/execute-full))]
       (is (= 2 (count rows))))))
 
+(live-test history-retention-round-trip
+  (let [original (mdb/history-retention (client))]
+    (is (pos? (:history_retention_epochs original)))
+    (try
+      (let [_ (mdb/set-history-retention-epochs (client) 1000)
+            current (mdb/history-retention (client))]
+        (is (= 1000 (:history_retention_epochs current))))
+      (finally
+        (mdb/set-history-retention-epochs (client) (:history_retention_epochs original))))))
+
+(live-test as-of-epoch-time-travel
+  (let [original (mdb/history-retention (client))]
+    (try
+      (mdb/set-history-retention-epochs (client) 10000)
+      (let [name (unique-table "clj_pit")]
+        (fresh-table name (int-col 1 "id" :primary_key true) (float-col 2 "amount"))
+        (mdb/put (client) name {1 1, 2 1.0})
+        (let [insert-epoch (mdb/last-epoch (client))]
+          (is (pos? insert-epoch))
+          (mdb/upsert (client) name {1 1, 2 9.0} {2 9.0})
+          (let [hist-rows (mdb/sql (client) (str "SELECT id, amount FROM " name " AS OF EPOCH " insert-epoch))
+                curr-rows (mdb/sql (client) (str "SELECT id, amount FROM " name))]
+            (when-not (empty? hist-rows)
+              (is (= 1 (count hist-rows)))
+              (is (= 1 (get (first hist-rows) "id")))
+              (is (= 1.0 (get (first hist-rows) "amount"))))
+            (when-not (empty? curr-rows)
+              (is (= 1 (count curr-rows)))
+              (is (= 9.0 (get (first curr-rows) "amount")))))))
+      (finally
+        (mdb/set-history-retention-epochs (client) (:history_retention_epochs original))))))
+
 ;; ── Offline unit tests (no daemon needed) ─────────────────────────────────
 
 (deftest flatten-cells-test
@@ -372,9 +404,36 @@
            (get-in payload [:constraints :checks 0 :name])))))
 
 (deftest static-default-matrix
-  (doseq [value ["text" 3 true nil "now"]]
-    (let [wire (json/to-bytes {:default_value value})]
-      (is (= value (:default_value (json/parse wire)))))))
+  (doseq [value ["text" 3 true nil "now" "uuid"]]
+    (let [parsed (json/parse (json/to-bytes {:default_value value}))]
+      (is (contains? parsed :default_value))
+      (is (= value (:default_value parsed))))))
+
+(deftest create-table-default-matrix-json-types
+  (let [payload-fn (deref #'visorcraft.mongreldb.core/create-table-payload)
+        columns [{:id 1 :name "s" :ty "varchar" :default_value "draft"}
+                 {:id 2 :name "n" :ty "int64" :default_value 7}
+                 {:id 3 :name "b" :ty "bool" :default_value true}
+                 {:id 4 :name "nil" :ty "varchar" :default_value nil}
+                 {:id 5 :name "now_literal" :ty "varchar" :default_value "now"}
+                 {:id 6 :name "uuid_literal" :ty "varchar" :default_value "uuid"}
+                 {:id 7 :name "created_at" :ty "timestamp" :default_expr "now"}]
+        payload (payload-fn "defaults" columns nil)
+        parsed (json/parse (json/to-bytes payload))
+        cols-by-name (into {} (map (fn [c] [(:name c) c]) (:columns parsed)))]
+    (is (= "draft" (get-in cols-by-name ["s" :default_value])))
+    (is (= 7 (get-in cols-by-name ["n" :default_value])))
+    (is (= true (get-in cols-by-name ["b" :default_value])))
+    (is (contains? (get cols-by-name "nil") :default_value))
+    (is (nil? (get-in cols-by-name ["nil" :default_value])))
+    (is (= "now" (get-in cols-by-name ["now_literal" :default_value])))
+    (is (= "uuid" (get-in cols-by-name ["uuid_literal" :default_value])))
+    (is (= "now" (get-in cols-by-name ["created_at" :default_expr])))
+    (is (nil? (get-in cols-by-name ["created_at" :default_value])))))
+
+(deftest set-history-retention-payload-shape
+  (let [wire (json/to-bytes {:history_retention_epochs 2048})]
+    (is (= 2048 (:history_retention_epochs (json/parse wire))))))
 
 (deftest url-path-escape-encodes-slash
   (is (= "a%2Fb" (mdb/url-path-escape "a/b")))

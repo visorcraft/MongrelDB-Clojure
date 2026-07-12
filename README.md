@@ -24,12 +24,10 @@
 
 ```clojure
 ;; deps.edn
-{visoncraft/mongreldb
+{visorcraft/mongreldb
  {:git/url "https://github.com/visorcraft/MongrelDB-Clojure.git"
   :sha     "..."}}
 ```
-
-History retention: `history-retention` and `set-history-retention-epochs`.
 
 ## Requirements
 
@@ -49,6 +47,9 @@ History retention: `history-retention` and `set-history-retention-epochs`.
 - **Auth**: Bearer token (`--auth-token` mode) and HTTP Basic (`--auth-users` mode), with the bearer token taking precedence.
 - **Typed exception hierarchy**: `MongrelDBException` (base), `AuthException` (401/403), `NotFoundException` (404), `ConflictException` (409, with code + op-index), and `QueryException` (everything else, including network failures).
 - **Robust JSON handling**: a self-contained JSON codec (no external deps); the `/sql` endpoint's Arrow IPC bodies are tolerated gracefully.
+- **History retention and time travel**: `history-retention`,
+  `history-retention-epochs`, `earliest-retained-epoch`,
+  `set-history-retention-epochs`, and `last-epoch` for `AS OF EPOCH` reads.
 
 ## Install
 
@@ -257,6 +258,11 @@ for the category, or `MongrelDBException` for any client failure.
 | `sql-arrow sql` -> bytes | Execute SQL requesting raw Arrow IPC bytes |
 | `schema` -> map | Full schema catalog |
 | `schema-for table` -> map | Single-table descriptor |
+| `history-retention` -> map | Current retention window and earliest retained epoch |
+| `history-retention-epochs` -> int | Current durable MVCC window size |
+| `earliest-retained-epoch` -> int | Oldest epoch still readable via `AS OF EPOCH` |
+| `set-history-retention-epochs epochs` -> map | Set the durable MVCC window |
+| `last-epoch` -> int | Commit epoch of the most recent `/kit/txn` (0 before any write) |
 | `compact` -> map | Compact all tables |
 | `compact-table name` -> map | Compact one table |
 | `begin` -> transaction | Start a batch (see `visorcraft.mongreldb.transaction`) |
@@ -282,7 +288,7 @@ for the category, or `MongrelDBException` for any client failure.
 | `delete txn table row-id` -> txn | Stage a delete by row id |
 | `delete-by-pk txn table pk` -> txn | Stage a delete by primary key |
 | `count* txn` -> int | Number of staged operations |
-| `commit txn`, `(commit idem)` -> `{:txn :results}` | Commit atomically |
+| `commit txn`, `(commit idem)` -> `{:results [...]}` | Commit atomically |
 | `rollback txn` -> txn | Discard all operations |
 
 ### Exceptions
@@ -294,6 +300,28 @@ for the category, or `MongrelDBException` for any client failure.
 | `dev.visorcraft.mongreldb.NotFoundException` | 404 | Missing table, schema, or resource |
 | `dev.visorcraft.mongreldb.ConflictException` | 409 | Constraint violation; carries `code` and `opIndex` |
 | `dev.visorcraft.mongreldb.QueryException` | 400, 5xx, network | Everything else |
+
+## History retention
+
+Use `history-retention`, `set-history-retention-epochs`, and `last-epoch` with
+MongrelDB 0.48.0+. The retention window controls how far back `AS OF EPOCH`
+time-travel queries can read; increasing it cannot bring back history that has
+already been pruned.
+
+```clojure
+;; Inspect the current durable MVCC window.
+(def ret (mdb/history-retention db))
+(:history_retention_epochs ret)  ; e.g. 1024
+(:earliest_retained_epoch ret)   ; e.g. 3
+
+;; Widen the window. The response contains the updated values.
+(def updated (mdb/set-history-retention-epochs db 1000))
+(:history_retention_epochs updated)  ; 1000
+
+;; After a Kit transaction write, last-epoch holds the commit epoch.
+(mdb/put db "orders" {1 1})
+(mdb/sql db (str "SELECT id FROM orders AS OF EPOCH " (mdb/last-epoch db)))
+```
 
 ## Building and testing
 

@@ -66,7 +66,7 @@ Leave the daemon running for the rest of this guide.
 Add the client to your `deps.edn`:
 
 ```clojure
-{:deps {visoncraft/mongreldb
+{:deps {visorcraft/mongreldb
         {:git/url "https://github.com/visorcraft/MongrelDB-Clojure.git"
          :sha     "..."}}}
 ```
@@ -154,7 +154,58 @@ total rows: 2
 | `(q/execute-full ...)` | Sends the query and returns `[rows truncated]`. |
 | `(mdb/count* db table)` | GET `/tables/{name}/count`. |
 
-## 6. Common pitfalls
+## 6. Constrained columns
+
+`create-table` forwards column maps to the daemon verbatim, so the recognized
+keys (`enum_variants`, `default_value`, `default_expr`) are passed unchanged.
+
+| Key | Effect |
+|-----|--------|
+| `enum_variants` | Restrict the column to one of the listed string values. |
+| `default_value` | String/number/boolean/null default applied when the cell is omitted on a `put`. Literal values `"now"` and `"uuid"` are sent as static strings; use `default_expr` for dynamic `now`/`uuid` defaults. |
+| `default_expr` | Dynamic `"now"` or `"uuid"`. Takes precedence over `default_value`. |
+
+```clojure
+(mdb/create-table db "orders"
+                  [{"id" 1 "name" "id" "ty" "int64" "primary_key" true}
+                   {"id" 2 "name" "status" "ty" "varchar"
+                    "enum_variants" ["pending" "shipped"]
+                    "default_value" "pending"}
+                   {"id" 3 "name" "retries" "ty" "int64"
+                    "default_value" 3}
+                   {"id" 4 "name" "tag" "ty" "varchar"
+                    "default_value" "now"}        ; static string literal
+                   {"id" 5 "name" "created_at" "ty" "timestamp"
+                    "default_expr" "now"}])       ; dynamic default
+```
+
+## 7. History retention and time travel
+
+MongrelDB keeps a durable MVCC history window. The size of the window is measured
+in epochs and controls how far back `AS OF EPOCH` queries can read. The client
+exposes three pieces of the API:
+
+- `(mdb/history-retention db)` returns the current window and earliest retained
+  epoch.
+- `(mdb/set-history-retention-epochs db epochs)` changes the durable window.
+  Increasing retention cannot bring back epochs that have already been
+  garbage-collected.
+- `(mdb/last-epoch db)` returns the commit epoch of the most recent successful
+  `/kit/txn` call, or `0` before any such call. It is a convenient pinning point
+  for time-travel reads.
+
+```clojure
+;; Widen the history window.
+(def updated (mdb/set-history-retention-epochs db 10000))
+(:history_retention_epochs updated)
+(:earliest_retained_epoch updated)
+
+;; Pin a read to the epoch of the last committed write.
+(mdb/put db "orders" {1 1})
+(mdb/sql db (str "SELECT id FROM orders AS OF EPOCH " (mdb/last-epoch db)))
+```
+
+## 8. Common pitfalls
 
 **Using the column name instead of the column id.** Every on-wire API uses
 the numeric `id` from `create-table`, never the `name`. The query builder's

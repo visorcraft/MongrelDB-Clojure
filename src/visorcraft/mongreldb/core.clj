@@ -55,7 +55,8 @@
       :token (:token opts)
       :username (:username opts)
       :password (:password opts)
-      :http http})))
+      :http http
+      :last-epoch (atom 0)})))
 
 ;; ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -88,13 +89,18 @@
   [cells]
   (into [] (mapcat (fn [[k v]] [k v])) cells))
 
-(defn- decode-results
-  "Pull the results array out of a /kit/txn response body."
-  [^bytes body]
+(defn- decode-txn-response
+  "Pull the results array out of a /kit/txn response body and update the
+  client's :last-epoch atom when the server reports a committed status."
+  [client ^bytes body]
   (cond
     (nil? body) []
     (empty? (String. body StandardCharsets/UTF_8)) []
-    :else (let [parsed (json/parse body)]
+    :else (let [parsed (try (json/parse body) (catch Exception _ nil))]
+            (when (and (map? parsed)
+                       (= "committed" (:status parsed))
+                       (integer? (:epoch parsed)))
+              (reset! (:last-epoch client) (long (:epoch parsed))))
             (if (map? parsed)
               (if (vector? (:results parsed)) (:results parsed) [])
               (throw (QueryException. "mongreldb: decode txn response: unexpected JSON"))))))
@@ -236,12 +242,33 @@
       (let [parsed (json/parse body)]
         (if (vector? parsed) (mapv #(if (nil? %) nil (str %)) parsed) [])))))
 
-(defn history-retention [client]
+(defn history-retention
+  "Return the current durable MVCC window and earliest retained epoch."
+  [client]
   (json/parse (http-get client "/history/retention")))
 
-(defn set-history-retention-epochs [client epochs]
+(defn history-retention-epochs
+  "Return the current durable MVCC window size in epochs."
+  [client]
+  (:history_retention_epochs (history-retention client)))
+
+(defn earliest-retained-epoch
+  "Return the oldest epoch still readable via `AS OF EPOCH` queries."
+  [client]
+  (:earliest_retained_epoch (history-retention client)))
+
+(defn set-history-retention-epochs
+  "Set the durable MVCC window size. Returns the updated window and earliest
+  retained epoch."
+  [client epochs]
   (json/parse (http-put client "/history/retention"
                         {:history_retention_epochs epochs})))
+
+(defn last-epoch
+  "Return the commit epoch of the most recent successful `/kit/txn` call, or 0
+  before any such call."
+  [client]
+  @(:last-epoch client))
 
 (defn- create-table-payload [name columns constraints]
   (cond-> {:name name :columns columns}
@@ -252,8 +279,8 @@
   ([client name columns]
    (create-table client name columns nil))
   ([client name columns constraints]
-  (let [payload (create-table-payload name columns constraints)
-        body (http-post client "/kit/create_table" payload)]
+   (let [payload (create-table-payload name columns constraints)
+         body (http-post client "/kit/create_table" payload)]
     (if (empty? (String. body StandardCharsets/UTF_8))
       0
       (let [parsed (json/parse body)]
@@ -285,7 +312,7 @@
   (let [payload (cond-> {:ops ops}
                   (and idempotency-key (not (empty? idempotency-key)))
                   (assoc :idempotency_key idempotency-key))]
-    (decode-results (http-post client "/kit/txn" payload))))
+    (decode-txn-response client (http-post client "/kit/txn" payload))))
 
 (defn put
   "Insert a row. `cells` is a column-id-to-value map, flattened to the server's
@@ -397,7 +424,7 @@
     (let [payload (cond-> {:ops ops}
                     (and idempotency-key (not (empty? idempotency-key)))
                     (assoc :idempotency_key idempotency-key))]
-      (decode-results (http-post client "/kit/txn" payload)))))
+      (decode-txn-response client (http-post client "/kit/txn" payload)))))
 
 (defn begin
   "Begin a batch transaction. Operations staged on the returned transaction are
