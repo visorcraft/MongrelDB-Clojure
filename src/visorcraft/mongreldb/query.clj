@@ -59,6 +59,7 @@
    :conditions     []
    :projection     nil
    :limit          nil
+   :offset         nil
    :last-truncated false})
 
 (defn where
@@ -80,13 +81,19 @@
   [b n]
   (assoc b :limit (long n)))
 
+(defn offset
+  "Skip matching rows before applying the limit."
+  [b n]
+  (assoc b :offset (long n)))
+
 (defn build
   "Build the request payload that will be sent to /kit/query."
-  [{:keys [table conditions projection limit]}]
+  [{:keys [table conditions projection limit offset]}]
   (cond-> {:table table}
     (seq conditions)   (assoc :conditions (vec conditions))
     (some? projection) (assoc :projection projection)
-    (some? limit)      (assoc :limit limit)))
+    (some? limit)      (assoc :limit limit)
+    (some? offset)     (assoc :offset offset)))
 
 (declare execute-full)
 

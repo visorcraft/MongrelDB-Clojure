@@ -274,6 +274,7 @@ for the category, or `MongrelDBException` for any client failure.
 | `where b cond-type params` -> b | Add a native condition (AND-ed) |
 | `projection b column-ids` -> b | Set column projection |
 | `limit b n` -> b | Set row limit |
+| `offset b n` -> b | Skip matching rows before the limit |
 | `build b` -> map | Build the request payload |
 | `execute b` -> rows | Run the query |
 | `execute-full b` -> `[rows truncated]` | Run the query and report truncation |

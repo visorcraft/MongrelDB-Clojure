@@ -483,13 +483,15 @@
   (let [b (-> (q/builder nil "orders")
               (q/where "range" {:column 3 :min 100})
               (q/projection [1 2])
-              (q/limit 10))
+              (q/limit 10)
+              (q/offset 12))
         payload (q/build b)]
     (is (= "orders" (:table payload)))
     (is (= 1 (count (:conditions payload))))
     (is (= {:range {:column_id 3 :lo 100}} (first (:conditions payload))))
     (is (= [1 2] (:projection payload)))
-    (is (= 10 (:limit payload)))))
+    (is (= 10 (:limit payload)))
+    (is (= 12 (:offset payload)))))
 
 (deftest transaction-already-committed-constant
   (is (= "mongreldb: transaction already committed"
