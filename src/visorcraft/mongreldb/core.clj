@@ -85,9 +85,14 @@
     (.toString sb)))
 
 (defn ^:no-doc flatten-cells
-  "Flatten a column-id-to-value map to the server's [col_id, value, ...] vector."
+  "Flatten a column-id-to-value map to the server's [col_id, value, ...] vector
+  in ascending column-id order. Stable ordering is required for idempotency
+  keys: the server hashes the request payload, and unordered map iteration
+  would make two commits of the same cells look like a reuse mismatch."
   [cells]
-  (into [] (mapcat (fn [[k v]] [k v])) cells))
+  (into []
+        (mapcat (fn [[k v]] [k v]))
+        (sort-by (fn [[k _]] k) cells)))
 
 (defn- decode-txn-response
   "Pull the results array out of a /kit/txn response body and update the
