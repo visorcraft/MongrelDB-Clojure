@@ -397,13 +397,32 @@
                   :default_value 3 :default_expr "uuid"}]
         checks {:checks [{:id 1 :name "status_allowed"
                           :expr {:Eq [{:Col 1} {:Lit {:Bytes "draft"}}]}}]}
-        payload (payload-fn "articles" columns checks)]
+        indexes [{:name "bm" :column_id 1 :kind "bitmap"}
+                 {:name "fm" :column_id 1 :kind "fm_index"}
+                 {:name "ann" :column_id 2 :kind "ann"
+                  :predicate "embedding IS NOT NULL"
+                  :options {:ann {:m 24 :ef_construction 96 :ef_search 48
+                                  :quantization "dense"}}}
+                 {:name "range" :column_id 1 :kind "learned_range"}
+                 {:name "minhash" :column_id 1 :kind "minhash"}
+                 {:name "sparse" :column_id 1 :kind "sparse"}]
+        embedding {:id 2 :name "embedding" :ty "embedding(384)"
+                   :embedding_source {:kind "configured_model"
+                                      :provider_id "docs" :model_id "model"
+                                      :model_version "1"}}
+        payload (payload-fn "articles" (conj columns embedding) checks indexes)]
     (is (= ["draft" "active"]
            (get-in payload [:columns 0 :enum_variants])))
     (is (= 3 (get-in payload [:columns 0 :default_value])))
     (is (= "uuid" (get-in payload [:columns 0 :default_expr])))
     (is (= "status_allowed"
-           (get-in payload [:constraints :checks 0 :name])))))
+           (get-in payload [:constraints :checks 0 :name])))
+    (is (= "configured_model"
+           (get-in payload [:columns 1 :embedding_source :kind])))
+    (is (= ["bitmap" "fm_index" "ann" "learned_range" "minhash" "sparse"]
+           (mapv :kind (:indexes payload))))
+    (is (= "dense" (get-in payload [:indexes 2 :options :ann :quantization])))
+    (is (= "embedding IS NOT NULL" (get-in payload [:indexes 2 :predicate])))))
 
 (deftest static-default-matrix
   (doseq [value ["text" 3 true nil "now" "uuid"]]
@@ -420,7 +439,7 @@
                  {:id 5 :name "now_literal" :ty "varchar" :default_value "now"}
                  {:id 6 :name "uuid_literal" :ty "varchar" :default_value "uuid"}
                  {:id 7 :name "created_at" :ty "timestamp" :default_expr "now"}]
-        payload (payload-fn "defaults" columns nil)
+        payload (payload-fn "defaults" columns nil nil)
         parsed (json/parse (json/to-bytes payload))
         cols-by-name (into {} (map (fn [c] [(:name c) c]) (:columns parsed)))]
     (is (= "draft" (get-in cols-by-name ["s" :default_value])))

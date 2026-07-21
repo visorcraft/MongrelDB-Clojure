@@ -275,16 +275,19 @@
   [client]
   @(:last-epoch client))
 
-(defn- create-table-payload [name columns constraints]
+(defn- create-table-payload [name columns constraints indexes]
   (cond-> {:name name :columns columns}
-    (some? constraints) (assoc :constraints constraints)))
+    (some? constraints) (assoc :constraints constraints)
+    (some? indexes) (assoc :indexes indexes)))
 
 (defn create-table
   "Create a table with typed columns and optional constraints; return its id."
   ([client name columns]
-   (create-table client name columns nil))
+   (create-table client name columns nil nil))
   ([client name columns constraints]
-   (let [payload (create-table-payload name columns constraints)
+   (create-table client name columns constraints nil))
+  ([client name columns constraints indexes]
+   (let [payload (create-table-payload name columns constraints indexes)
          body (http-post client "/kit/create_table" payload)]
     (if (empty? (String. body StandardCharsets/UTF_8))
       0

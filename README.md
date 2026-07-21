@@ -246,7 +246,7 @@ for the category, or `MongrelDBException` for any client failure.
 | `connect`, `(connect opts)` | Construct a client (`:url` defaults to `http://127.0.0.1:8453`); also accepts `:token`, `:username`, `:password` |
 | `health` -> boolean | Check daemon health |
 | `table-names` -> vector | List table names |
-| `create-table name columns` / `create-table name columns constraints` -> int | Create a table; the four-arity form forwards the native constraints object |
+| `create-table name columns constraints indexes` -> int | Create a table with optional constraints and all index definitions |
 | `drop-table name` -> nil | Drop a table |
 | `count* table` -> int | Row count |
 | `put table cells`, `(put ... idem)` -> map | Insert a row |
