@@ -482,6 +482,19 @@
           (is (= 100 (:history_retention_epochs resp)))
           (is (= 7 (:earliest_retained_epoch resp))))))))
 
+(deftest ann-backend-options-wire-shape
+  (let [payload {:name "vectors" :columns []
+                 :indexes [{:name "ann" :column_id 2 :kind "ann"
+                            :options {:ann {:algorithm "diskann"
+                                            :quantization "dense"
+                                            :diskann {:r 64 :l 128
+                                                      :beam_width 8 :alpha 120}}}}]}
+        decoded (json/parse (json/to-bytes payload))
+        ann (get-in decoded [:indexes 0 :options :ann])]
+    (is (= "diskann" (:algorithm ann)))
+    (is (= "dense" (:quantization ann)))
+    (is (= 8 (get-in ann [:diskann :beam_width])))))
+
 (deftest url-path-escape-encodes-slash
   (is (= "a%2Fb" (mdb/url-path-escape "a/b")))
   (is (= "plain" (mdb/url-path-escape "plain")))
