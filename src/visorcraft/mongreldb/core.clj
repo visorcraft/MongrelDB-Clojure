@@ -362,6 +362,128 @@
   ;; callers only need to require this namespace.
   ((requiring-resolve 'visorcraft.mongreldb.query/builder) client table))
 
+;; ── Public API: durable recovery + retrieve_text (0.64+) ───────────────────
+
+(defn parse-commit-hlc
+  "Structural HLC from durable recovery. Returns nil when physical_micros is absent."
+  [raw]
+  (when (and (map? raw) (some? (or (:physical_micros raw) (get raw "physical_micros"))))
+    (let [phys (or (:physical_micros raw) (get raw "physical_micros"))
+          logical (or (:logical raw) (get raw "logical") 0)
+          node (or (:node_tiebreaker raw) (get raw "node_tiebreaker") 0)]
+      {:physical_micros (long phys)
+       :logical (int logical)
+       :node_tiebreaker (int node)})))
+
+(defn- parse-durable-outcome
+  [raw]
+  (let [m (if (map? raw) raw {})
+        g (fn [k] (or (get m k) (get m (name k))))]
+    {:committed (when (or (contains? m :committed) (contains? m "committed"))
+                  (g :committed))
+     :committed_statements (g :committed_statements)
+     :last_commit_epoch (g :last_commit_epoch)
+     :last_commit_epoch_text (g :last_commit_epoch_text)
+     :last_commit_hlc (parse-commit-hlc (g :last_commit_hlc))
+     :first_commit_statement_index (g :first_commit_statement_index)
+     :last_commit_statement_index (g :last_commit_statement_index)
+     :completed_statements (g :completed_statements)
+     :statement_index (g :statement_index)
+     :serialization (str (or (g :serialization) ""))
+     :serialization_state (g :serialization_state)
+     :terminal_state (g :terminal_state)}))
+
+(defn parse-query-status
+  "Decode GET /queries/{id} body into a structural status map (0.64+)."
+  [raw]
+  (let [m (if (map? raw) raw {})
+        g (fn [k] (or (get m k) (get m (name k))))
+        durable-raw (g :durable)
+        durable (when (map? durable-raw) (parse-durable-outcome durable-raw))
+        outcome (parse-durable-outcome (g :outcome))]
+    {:query_id (str (or (g :query_id) ""))
+     :status (str (or (g :status) ""))
+     :state (str (or (g :state) ""))
+     :server_state (str (or (g :server_state) (g :state) ""))
+     :terminal_state (g :terminal_state)
+     :committed (when (or (contains? m :committed) (contains? m "committed"))
+                  (g :committed))
+     :committed_statements (g :committed_statements)
+     :last_commit_epoch (g :last_commit_epoch)
+     :last_commit_hlc (parse-commit-hlc (g :last_commit_hlc))
+     :outcome outcome
+     :durable durable
+     :raw m}))
+
+(defn commit-hlc
+  "Authoritative HLC: durable → outcome → top-level."
+  [status]
+  (or (get-in status [:durable :last_commit_hlc])
+      (get-in status [:outcome :last_commit_hlc])
+      (:last_commit_hlc status)))
+
+(defn serialization-state
+  "Prefer nested durable/outcome serialization_state, then serialization."
+  [status]
+  (or (not-empty (str (get-in status [:durable :serialization_state] "")))
+      (not-empty (str (get-in status [:durable :serialization] "")))
+      (not-empty (str (get-in status [:outcome :serialization_state] "")))
+      (str (get-in status [:outcome :serialization] ""))))
+
+(defn retrieve-text
+  "Text → embed → ANN retrieve (POST /kit/retrieve_text, 0.64+).
+  Options map may include :k, :deadline_ms, :max_work."
+  ([client table embedding-column text]
+   (retrieve-text client table embedding-column text nil))
+  ([client table embedding-column text opts]
+   (when (or (nil? table) (empty? (str table)))
+     (throw (QueryException. "table is required")))
+   (when (or (nil? text) (empty? (str text)))
+     (throw (QueryException. "text is required")))
+   (let [payload (cond-> {:table table
+                          :embedding_column (long embedding-column)
+                          :text text}
+                   (some? (:k opts)) (assoc :k (:k opts))
+                   (some? (:deadline_ms opts)) (assoc :deadline_ms (:deadline_ms opts))
+                   (some? (:max_work opts)) (assoc :max_work (:max_work opts)))
+         body (http-post client "/kit/retrieve_text" payload)
+         s (.trim (String. body StandardCharsets/UTF_8))]
+     (if (empty? s)
+       {:hits [] :provenance {}}
+       (let [data (json/parse body)]
+         (if (map? data)
+           {:hits (or (:hits data) (get data "hits") [])
+            :provenance (or (:provenance data) (get data "provenance") {})}
+           {:hits [] :provenance {}}))))))
+
+(defn query-status
+  "Retained SQL status for durable recovery (GET /queries/{query_id})."
+  [client query-id]
+  (when (or (nil? query-id) (empty? (str query-id)))
+    (throw (QueryException. "query_id is required")))
+  (let [body (http-get client (str "/queries/" (url-path-escape query-id)))
+        s (.trim (String. body StandardCharsets/UTF_8))]
+    (when (empty? s)
+      (throw (QueryException. "query status response was not a JSON object")))
+    (let [parsed (json/parse body)]
+      (when-not (map? parsed)
+        (throw (QueryException. "query status response was not a JSON object")))
+      (parse-query-status parsed))))
+
+(defn cancel-query
+  "Request cancellation of a running SQL query."
+  [client query-id]
+  (when (or (nil? query-id) (empty? (str query-id)))
+    (throw (QueryException. "query_id is required")))
+  (let [body (http-post client
+                        (str "/queries/" (url-path-escape query-id) "/cancel")
+                        {})
+        s (.trim (String. body StandardCharsets/UTF_8))]
+    (if (empty? s)
+      {}
+      (let [data (json/parse body)]
+        (if (map? data) data {})))))
+
 ;; ── Public API: SQL ────────────────────────────────────────────────────────
 
 (defn sql
