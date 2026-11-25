@@ -1,4 +1,4 @@
 (ns visorcraft.mongreldb.version)
 
 ;; Client library version (aligned with the MongrelDB train).
-(def version "0.67.0")
+(def version "0.67.1")
